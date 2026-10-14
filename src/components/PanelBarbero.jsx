@@ -20,7 +20,7 @@ export default function PanelBarbero() {
   const [statuses, setStatuses] = useState([]); // Catálogo de estados posibles para las citas
 
   // Estados de control de interfaz (UX)
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null); // ID de la cita que se está actualizando actualmente
   const [error, setError] = useState('');
 
@@ -33,7 +33,6 @@ export default function PanelBarbero() {
     if (!credentials) return undefined;
 
     const controller = new AbortController();
-    setLoading(true);
 
     // Carga paralela de citas y estados mediante Promise.all para optimizar tiempos de respuesta
     Promise.all([

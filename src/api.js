@@ -56,7 +56,7 @@ export async function apiRequest(path, { method = 'GET', body, authorization, si
     // Propaga el error si fue provocado intencionalmente por un AbortController
     if (error.name === 'AbortError') throw error;
     // Captura errores de red (ej. si el servidor backend en Java Spring Boot no está corriendo)
-    throw new Error('No se pudo conectar con la API. Comprueba que Spring Boot esté ejecutándose.');
+    throw new Error('No se pudo conectar con la API. Comprueba que Spring Boot esté ejecutándose.', {cause : error});
   }
 
   // Si la respuesta es 204 No Content, retorna null directamente sin procesar cuerpo

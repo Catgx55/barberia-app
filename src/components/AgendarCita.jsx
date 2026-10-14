@@ -6,7 +6,9 @@ import Reseña from './Resena.jsx';
 import Servicios from './Servicios.jsx';
 import { COP, IMAGENES_SERVICIOS, METODOS_PAGO } from '../data.js';
 
-// Estado inicial inmutable del formulario de reserva
+/**
+ * Estado inicial limpio del formulario de reserva.
+ */
 const FORMULARIO_VACIO = {
   cliente: '',
   telefono: '',
@@ -18,11 +20,11 @@ const FORMULARIO_VACIO = {
 };
 
 /**
- * Función auxiliar para convertir una fecha de JavaScript al formato requerido
- * por los inputs de tipo `datetime-local` (YYYY-MM-DDTHH:mm), ajustando la zona horaria local.
- *
+ * Convierte un objeto Date a una cadena ISO recortada para campos `datetime-local` (YYYY-MM-THH:mm),
+ * ajustando manualmente la descompensación de la zona horaria local (`getTimezoneOffset`).
+ * 
  * @param {Date} fecha - Objeto Date a formatear.
- * @returns {string} Fecha formateada en la zona horaria local.
+ * @returns {string} Cadena formateada para inputs de fecha y hora locales.
  */
 function fechaHoraLocal(fecha) {
   const desplazamiento = fecha.getTimezoneOffset() * 60_000;
@@ -30,10 +32,9 @@ function fechaHoraLocal(fecha) {
 }
 
 /**
- * Calcula el próximo bloque de horario disponible redondeando hacia el
- * intervalo más cercano de 30 minutos a partir de la hora actual.
- *
- * @returns {string} Fecha y hora formateadas para el atributo `min` del input datetime.
+ * Calcula la siguiente franja horaria disponible redondeando hacia arriba en intervalos de 30 minutos.
+ * 
+ * @returns {string} Fecha y hora formateada para la restricción `min` del input `datetime-local`.
  */
 function siguienteHorarioDisponible() {
   const siguiente = new Date();
@@ -43,11 +44,11 @@ function siguienteHorarioDisponible() {
 }
 
 /**
- * Mapea/Adapta la entidad de servicio recibida de la API REST al DTO utilizado por la UI.
- * Asigna una imagen por defecto mediante el diccionario si la API no provee una.
- *
- * @param {Object} service - Objeto del servicio en la estructura de la API.
- * @returns {Object} Objeto de servicio adaptado para el componente `Servicios`.
+ * Adaptador de Datos (*Adapter Pattern*): Mapea la respuesta del DTO del backend (`ServiceResponse`)
+ * al formato esperado por la interfaz visual del cliente, asignando imágenes estáticas del catálogo.
+ * 
+ * @param {Object} service - DTO de servicio proveniente de la API REST.
+ * @returns {Object} Servicio adaptado para el frontend.
  */
 function adaptarServicio(service) {
   return {
@@ -62,22 +63,22 @@ function adaptarServicio(service) {
 
 /**
  * Componente Principal `AgendarCita`
- * Orquesta la página landing principal de la barbería "El Caballero", el formulario interactivo
- * de reservas y la alternancia de vista con el panel administrativo para los barberos.
+ * Actúa como la vista contenedor raíz (*Landing Page*) de Barbería "El Caballero".
+ * Gestiona el tema visual (oscuro/claro), el consumo asíncrono del catálogo público,
+ * la conmutación entre la landing page y el panel del barbero, y el agendamiento directo de citas.
  */
 export default function AgendarCita() {
-  // Estados de apariencia y navegación
+  // Estados de interfaz y navegación
   const [temaOscuro, setTemaOscuro] = useState(true);
-  const [vistaPanel, setVistaPanel] = useState(false); // Alterna entre la Landing Page y el Panel Administrativo
-
-  // Estados de datos remotos (Catálogos)
-  const [servicioSeleccionado, setServicioSeleccionado] = useState('');
+  const [vistaPanel, setVistaPanel] = useState(false);
+  
+  // Estados de datos asíncronos
   const [servicios, setServicios] = useState([]);
   const [barberos, setBarberos] = useState([]);
   const [cargandoCatalogo, setCargandoCatalogo] = useState(true);
   const [errorCatalogo, setErrorCatalogo] = useState('');
-
-  // Estados del formulario y reserva
+  
+  // Estados de gestión del formulario de reserva
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
   const [confirmacion, setConfirmacion] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
@@ -85,18 +86,16 @@ export default function AgendarCita() {
   const [fechaMinima, setFechaMinima] = useState(siguienteHorarioDisponible);
 
   /**
-   * Carga inicial de catálogos (Servicios y Barberos) mediante llamadas HTTP paralelas.
-   * Utiliza `AbortController` para cancelar la petición en caso de desmontaje del componente.
+   * Carga inicial asíncrona mediante `Promise.all` con soporte para cancelación de peticiones (`AbortController`).
+   * Consulta en paralelo el catálogo de servicios (`/services`) y los barberos disponibles (`/public/barbers`).
    */
   useEffect(() => {
     const controller = new AbortController();
-    
     Promise.all([
       apiRequest('/services', { signal: controller.signal }),
       apiRequest('/public/barbers', { signal: controller.signal }),
     ])
       .then(([serviceList, barberList]) => {
-        // Filtra solo los servicios activos y aplica el adaptador de datos
         setServicios(serviceList.filter((service) => service.active).map(adaptarServicio));
         setBarberos(barberList);
         setErrorCatalogo('');
@@ -112,17 +111,18 @@ export default function AgendarCita() {
   }, []);
 
   /**
-   * Escucha la selección rápida de un servicio desde las tarjetas del catálogo
-   * y desplaza suavemente al usuario (*smooth scroll*) hacia el formulario de reserva.
+   * Sincroniza la selección directa desde la tarjeta del servicio con el formulario de reserva,
+   * desplazando la pantalla suavemente hacia la sección `#agendar`.
    */
-  useEffect(() => {
-    if (!servicioSeleccionado) return;
-    setFormulario((actual) => ({ ...actual, servicioId: servicioSeleccionado }));
+  function manejarSeleccionServicio(id) {
+    setFormulario((actual) => ({ ...actual, servicioId: id }));
+    setConfirmacion('');
+    setErrorReserva('');
     document.getElementById('agendar')?.scrollIntoView({ behavior: 'smooth' });
-  }, [servicioSeleccionado]);
+  }
 
   /**
-   * Manejador genérico para el cambio de valores en las entradas del formulario.
+   * Manejador de cambios genérico para actualizar el estado del formulario de forma inmutable.
    */
   function actualizar(evento) {
     setFormulario((actual) => ({ ...actual, [evento.target.name]: evento.target.value }));
@@ -131,16 +131,15 @@ export default function AgendarCita() {
   }
 
   /**
-   * Procesa y valida el envío del formulario de reserva hacia el servidor.
+   * Envía la reserva pública al backend (`POST /public/appointments`).
+   * Valida en cliente el horario y delega al `PublicBookingService` la creación del cliente y de la cita.
    */
   async function reservar(evento) {
     evento.preventDefault();
-    
     const service = servicios.find((item) => item.id === Number(formulario.servicioId));
     const barber = barberos.find((item) => item.id === Number(formulario.barberoId));
     const start = new Date(formulario.fechaHora);
 
-    // Validaciones de integridad previa al envío
     if (!service || !barber || Number.isNaN(start.getTime())) {
       setErrorReserva('Selecciona un servicio, barbero y horario válidos.');
       return;
@@ -150,10 +149,10 @@ export default function AgendarCita() {
       return;
     }
 
-    // Descomposición del nombre en Nombre y Apellidos para cumplir con el esquema del backend
+    // Descompone el nombre completo en nombre y apellido para el backend
     const [firstName, ...lastNameParts] = formulario.cliente.trim().split(/\s+/);
     const [appointmentDate, startTime] = formulario.fechaHora.split('T');
-
+    
     setReservando(true);
     setErrorReserva('');
 
@@ -174,9 +173,8 @@ export default function AgendarCita() {
         },
       });
 
-      // Limpieza de estados tras confirmación exitosa
+      // Limpia el formulario y muestra mensaje de éxito con el ID de la cita retornado por el servidor
       setFormulario(FORMULARIO_VACIO);
-      setServicioSeleccionado('');
       setFechaMinima(siguienteHorarioDisponible());
       setConfirmacion(
         `¡Listo, ${appointment.clientName}! Tu cita #${appointment.id} para ${service.nombre} quedó pendiente de confirmación.`
@@ -189,7 +187,7 @@ export default function AgendarCita() {
   }
 
   /**
-   * Alterna la vista entre la landing page del cliente y el panel interno para barberos.
+   * Alterna la navegación entre la Landing Page del cliente y el Panel de Administración del Barbero.
    */
   function alternarVista() {
     setVistaPanel((actual) => !actual);
@@ -199,63 +197,31 @@ export default function AgendarCita() {
 
   return (
     <div className={`app-shell ${temaOscuro ? 'theme-dark' : 'theme-light'}`}>
-      
-      {/* Encabezado del sitio web y navegación principal */}
       <header className="site-header">
         <a className="brand" href="#inicio" onClick={() => setVistaPanel(false)} aria-label="El Caballero, inicio">
           <span className="brand-mark" aria-hidden="true">C.</span>
           <span><strong>EL CABALLERO</strong><small>BARBERÍA · ARMENIA</small></span>
         </a>
-
         <nav className="main-nav" aria-label="Navegación principal">
-          {!vistaPanel && (
-            <>
-              <a href="#servicios">Servicios</a>
-              <a href="#resenas">Reseñas</a>
-              <a href="#pagos">Medios de pago</a>
-              <a className="nav-book" href="#agendar">
-                Reservar <span aria-hidden="true">↗</span>
-              </a>
-            </>
-          )}
-
-          {/* Switch para el modo oscuro / claro */}
-          <button 
-            className="theme-toggle" 
-            type="button" 
-            onClick={() => setTemaOscuro((actual) => !actual)} 
-            aria-label={temaOscuro ? 'Activar modo claro' : 'Activar modo oscuro'}
-          >
+          {!vistaPanel && <>
+            <a href="#servicios">Servicios</a><a href="#resenas">Reseñas</a><a href="#pagos">Medios de pago</a>
+            <a className="nav-book" href="#agendar">Reservar <span aria-hidden="true">↗</span></a>
+          </>}
+          <button className="theme-toggle" type="button" onClick={() => setTemaOscuro((actual) => !actual)} aria-label={temaOscuro ? 'Activar modo claro' : 'Activar modo oscuro'}>
             <span aria-hidden="true">{temaOscuro ? '☼' : '☾'}</span> {temaOscuro ? 'Modo claro' : 'Modo oscuro'}
           </button>
-
-          {/* Enlace para conmutar la vista del Panel de Staff */}
-          <button className="staff-link" type="button" onClick={alternarVista}>
-            {vistaPanel ? '← Volver al sitio' : 'Panel barbero'}
-          </button>
+          <button className="staff-link" type="button" onClick={alternarVista}>{vistaPanel ? '← Volver al sitio' : 'Panel barbero'}</button>
         </nav>
       </header>
 
-      {/* Renderizado condicional: Panel Administrativo vs Landing Page Comercial */}
-      {vistaPanel ? (
-        <PanelBarbero />
-      ) : (
+      {vistaPanel ? <PanelBarbero /> : (
         <>
-          {/* Banner de alertas globales para errores del catálogo o de reservas */}
           {(errorCatalogo || errorReserva) && (
             <div className="connection-notice" role="alert">
               <span>{errorReserva || errorCatalogo}</span>
-              <button 
-                type="button" 
-                aria-label="Cerrar aviso" 
-                onClick={() => { setErrorReserva(''); setErrorCatalogo(''); }}
-              >
-                ×
-              </button>
+              <button type="button" aria-label="Cerrar aviso" onClick={() => { setErrorReserva(''); setErrorCatalogo(''); }}>×</button>
             </div>
           )}
-
-          {/* Hero / Presentación de la barbería */}
           <section className="hero" id="inicio">
             <div className="hero-image" aria-hidden="true" />
             <div className="hero-content">
@@ -269,17 +235,14 @@ export default function AgendarCita() {
             <div className="hero-caption">CLÁSICOS DE SIEMPRE. ACTITUD DE HOY.</div>
           </section>
 
-          {/* Estado de carga de catálogos y renderizado de componentes presentacionales */}
           {cargandoCatalogo ? (
             <p className="catalog-state" role="status">Cargando servicios y barberos…</p>
           ) : (
-            <Servicios servicios={servicios} alReservar={setServicioSeleccionado} />
+            <Servicios servicios={servicios} alReservar={manejarSeleccionServicio} />
           )}
-
           <Reseña />
           <MedioPago />
 
-          {/* Sección y formulario de agendamiento de citas */}
           <section className="section booking-section" id="agendar">
             <div className="container booking-layout">
               <div className="booking-copy">
@@ -287,150 +250,53 @@ export default function AgendarCita() {
                 <h2>Un buen corte<br /><span className="serif-accent">te queda cerca.</span></h2>
                 <p>Elige tu servicio, tu barbero y el horario que mejor te venga. Te esperamos.</p>
                 <div className="booking-detail"><span>⌖</span> Armenia, Quindío · Colombia</div>
-                <div className="booking-detail">
-                  <span>◷</span> Lun–vie · 8:00 a. m.–8:00 p. m. · Sáb · 8:00 a. m.–6:00 p. m. · Dom · 10:00 a. m.–4:00 p. m.
-                </div>
+                <div className="booking-detail"><span>◷</span> Lun–vie · 8:00 a. m.–8:00 p. m. · Sáb · 8:00 a. m.–6:00 p. m. · Dom · 10:00 a. m.–4:00 p. m.</div>
               </div>
-
               <form className="booking-form" onSubmit={reservar}>
-                <div className="form-heading">
-                  <span className="eyebrow">Reserva en un momento</span>
-                  <h3>Agenda tu cita</h3>
-                </div>
-
-                <label>Tu nombre
-                  <input 
-                    name="cliente" 
-                    autoComplete="name" 
-                    placeholder="¿Cómo te llamas?" 
-                    value={formulario.cliente} 
-                    onChange={actualizar} 
-                    required 
-                    maxLength={80} 
-                  />
-                </label>
-
+                <div className="form-heading"><span className="eyebrow">Reserva en un momento</span><h3>Agenda tu cita</h3></div>
+                <label>Tu nombre<input name="cliente" autoComplete="name" placeholder="¿Cómo te llamas?" value={formulario.cliente} onChange={actualizar} required maxLength={80} /></label>
                 <div className="form-row">
-                  <label>Teléfono
-                    <input 
-                      name="telefono" 
-                      type="tel" 
-                      autoComplete="tel" 
-                      placeholder="+57 300 000 0000" 
-                      value={formulario.telefono} 
-                      onChange={actualizar} 
-                      required 
-                      maxLength={25} 
-                    />
-                  </label>
-
-                  <label>Correo electrónico
-                    <input 
-                      name="correo" 
-                      type="email" 
-                      autoComplete="email" 
-                      placeholder="tu@correo.com" 
-                      value={formulario.correo} 
-                      onChange={actualizar} 
-                      required 
-                      maxLength={190} 
-                    />
-                  </label>
+                  <label>Teléfono<input name="telefono" type="tel" autoComplete="tel" placeholder="+57 300 000 0000" value={formulario.telefono} onChange={actualizar} required maxLength={25} /></label>
+                  <label>Correo electrónico<input name="correo" type="email" autoComplete="email" placeholder="tu@correo.com" value={formulario.correo} onChange={actualizar} required maxLength={190} /></label>
                 </div>
-
                 <label>Elige tu servicio
-                  <select 
-                    name="servicioId" 
-                    value={formulario.servicioId} 
-                    onChange={actualizar} 
-                    required 
-                    disabled={cargandoCatalogo || servicios.length === 0}
-                  >
+                  <select name="servicioId" value={formulario.servicioId} onChange={actualizar} required disabled={cargandoCatalogo || servicios.length === 0}>
                     <option value="">Selecciona un servicio</option>
-                    {servicios.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.nombre} · {COP.format(service.precio)}
-                      </option>
-                    ))}
+                    {servicios.map((service) => <option key={service.id} value={service.id}>{service.nombre} · {COP.format(service.precio)}</option>)}
                   </select>
                 </label>
-
                 <div className="form-row">
                   <label>Tu barbero
-                    <select 
-                      name="barberoId" 
-                      value={formulario.barberoId} 
-                      onChange={actualizar} 
-                      required 
-                      disabled={cargandoCatalogo || barberos.length === 0}
-                    >
+                    <select name="barberoId" value={formulario.barberoId} onChange={actualizar} required disabled={cargandoCatalogo || barberos.length === 0}>
                       <option value="">Elige tu barbero</option>
-                      {barberos.map((barber) => (
-                        <option key={barber.id} value={barber.id}>
-                          {barber.firstName} {barber.lastName}
-                        </option>
-                      ))}
+                      {barberos.map((barber) => <option key={barber.id} value={barber.id}>{barber.firstName} {barber.lastName}</option>)}
                     </select>
                   </label>
-
-                  <label>Fecha y hora
-                    <input 
-                      name="fechaHora" 
-                      type="datetime-local" 
-                      min={fechaMinima} 
-                      step={1800} // Incrementos de 30 minutos (1800 segundos)
-                      value={formulario.fechaHora} 
-                      onChange={actualizar} 
-                      required 
-                    />
-                  </label>
+                  <label>Fecha y hora<input name="fechaHora" type="datetime-local" min={fechaMinima} step={1800} value={formulario.fechaHora} onChange={actualizar} required /></label>
                 </div>
-
                 {!cargandoCatalogo && barberos.length === 0 && (
                   <p className="form-footnote">No hay barberos activos disponibles para reservar en este momento.</p>
                 )}
-
-                {/* Selección del método de pago */}
                 <fieldset className="payment-options">
                   <legend>¿Cómo prefieres pagar?</legend>
                   {METODOS_PAGO.map((method) => (
-                    <label 
-                      className={`payment-option ${formulario.metodoPago === method.id ? 'selected' : ''}`} 
-                      key={method.id}
-                    >
-                      <input 
-                        type="radio" 
-                        name="metodoPago" 
-                        value={method.id} 
-                        checked={formulario.metodoPago === method.id} 
-                        onChange={actualizar} 
-                        required 
-                      />
+                    <label className={`payment-option ${formulario.metodoPago === method.id ? 'selected' : ''}`} key={method.id}>
+                      <input type="radio" name="metodoPago" value={method.id} checked={formulario.metodoPago === method.id} onChange={actualizar} required />
                       {method.nombre}
                     </label>
                   ))}
                 </fieldset>
-
-                <button 
-                  className="button button-primary form-submit" 
-                  type="submit" 
-                  disabled={reservando || cargandoCatalogo || servicios.length === 0 || barberos.length === 0}
-                >
+                <button className="button button-primary form-submit" type="submit" disabled={reservando || cargandoCatalogo || servicios.length === 0 || barberos.length === 0}>
                   {reservando ? 'Guardando…' : 'Confirmar mi cita'} <span aria-hidden="true">↗</span>
                 </button>
-
                 {confirmacion && <p className="form-success" role="status">{confirmacion}</p>}
                 <p className="form-footnote">La reserva se guarda en el servidor con estado pendiente de confirmación.</p>
               </form>
             </div>
           </section>
 
-          {/* Pie de página de la aplicación */}
           <footer className="site-footer">
-            <a className="brand" href="#inicio">
-              <span className="brand-mark" aria-hidden="true">C.</span>
-              <span><strong>EL CABALLERO</strong><small>BARBERÍA · ARMENIA</small></span>
-            </a>
+            <a className="brand" href="#inicio"><span className="brand-mark" aria-hidden="true">C.</span><span><strong>EL CABALLERO</strong><small>BARBERÍA · ARMENIA</small></span></a>
             <span>CALLE 93 · ARMENIA, QUINDÍO</span>
             <span>© 2026 · HECHO CON OFICIO</span>
           </footer>
