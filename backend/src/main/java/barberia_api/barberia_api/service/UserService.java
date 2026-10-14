@@ -117,7 +117,7 @@ public class UserService {
      */
     private static void validatePassword(String password) {
         if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new com.elcaballero.barberia.exception.BadRequestException(
+            throw new barberia_api.barberia_api.exception.BadRequestException(
                     "La contraseña no puede superar los 72 bytes en UTF-8.");
         }
     }

@@ -51,7 +51,7 @@ public class BarberService {
     @Transactional(readOnly = true)
     public BarberResponse findById(Long id) {
         Barber barber = barbers.findWithUserById(id)
-                .orElseThrow(() -> new com.elcaballero.barberia.exception.ResourceNotFoundException("Barbero", id));
+                .orElseThrow(() -> new barberia_api.barberia_api.exception.ResourceNotFoundException("Barbero", id));
         return toResponse(barber);
     }
 
@@ -107,7 +107,7 @@ public class BarberService {
     /**
      * Valida la existencia del usuario y asegura que su rol sea explícitamente `BARBER`.
      */
-    private com.elcaballero.barberia.entity.User barberUser(Long userId) {
+    private barberia_api.barberia_api.entity.User barberUser(Long userId) {
         var user = EntityLookup.user(users, userId);
         if (!"BARBER".equalsIgnoreCase(user.getRole().getName())) {
             throw new BadRequestException("El usuario debe tener el rol BARBER para crear un perfil de barbero.");
