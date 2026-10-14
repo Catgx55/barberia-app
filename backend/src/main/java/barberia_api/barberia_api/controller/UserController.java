@@ -35,7 +35,7 @@ public class UserController {
      * 
      * @param users - Servicio encargado de procesar las operaciones CRUD sobre los usuarios.
      */
-    public UserController(UserController users) {
+    public UserController(UserService users) {
         this.users = users;
     }
 
