@@ -47,6 +47,11 @@ public class ServiceController {
      */
     @GetMapping
     public List<ServiceResponse> findAll() {
+        return services.findActive();
+    }
+
+    @GetMapping("/admin")
+    public List<ServiceResponse> findAllForAdmin() {
         return services.findAll();
     }
 

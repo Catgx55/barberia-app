@@ -4,6 +4,8 @@ import barberia_api.barberia_api.entity.Role;
 import barberia_api.barberia_api.entity.User;
 import barberia_api.barberia_api.repository.RoleRepository;
 import barberia_api.barberia_api.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -18,10 +20,12 @@ import java.util.Locale;
  * Inicializador de Administrador Bootstrap (`BootstrapAdminInitializer`)
  * Implementa `ApplicationRunner` para ejecutarse automáticamente al arrancar la aplicación
  * de Spring Boot. Su propósito es garantizar la existencia de un usuario Administrador inicial
- * en la base de datos (creándolo o validándolo a partir de variables de entorno o valores por defecto).
+ * en la base de datos usando credenciales externas.
  */
 @Component
 public class BootstrapAdminInitializer implements ApplicationRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(BootstrapAdminInitializer.class);
 
     private final RoleRepository roles;
     private final UserRepository users;
@@ -31,15 +35,14 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
 
     /**
      * Inyección de dependencias por constructor y configuración de credenciales 
-     * mediante variables de entorno (`APP_ADMIN_EMAIL` y `APP_ADMIN_PASSWORD`), 
-     * respaldadas por valores predeterminados seguros para desarrollo.
+     * mediante variables de entorno (`APP_ADMIN_EMAIL` y `APP_ADMIN_PASSWORD`).
      */
     public BootstrapAdminInitializer(
             RoleRepository roles,
             UserRepository users,
             PasswordEncoder passwordEncoder,
-            @Value("${APP_ADMIN_EMAIL:admi@gmail.com}") String email,
-            @Value("${APP_ADMIN_PASSWORD:Catgx140212+++}") String password
+            @Value("${APP_ADMIN_EMAIL:}") String email,
+            @Value("${APP_ADMIN_PASSWORD:}") String password
     ) {
         this.roles = roles;
         this.users = users;
@@ -56,8 +59,9 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        // Si ambos campos están vacíos, omite la inicialización de forma silenciosa
+        // No crear credenciales compartidas: el administrador bootstrap es opcional.
         if (email.isBlank() && password.isBlank()) {
+            log.warn("No se creó el administrador inicial: configura APP_ADMIN_EMAIL y APP_ADMIN_PASSWORD si necesitas acceso administrativo.");
             return;
         }
 

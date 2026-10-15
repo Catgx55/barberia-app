@@ -127,6 +127,9 @@ public class AppointmentDetailService {
     public void delete(Long id) {
         AppointmentDetail detail = EntityLookup.detail(details, id);
         Appointment appointment = detail.getAppointment();
+        if (appointment.getDetails().size() == 1) {
+            throw new ConflictException("No se puede eliminar el único servicio de una cita.");
+        }
         
         barbers.findByIdForUpdate(appointment.getBarber().getId())
                 .orElseThrow(() -> new ResourceNotFoundException(

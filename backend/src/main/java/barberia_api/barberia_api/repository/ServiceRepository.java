@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface ServiceRepository extends JpaRepository<ServiceEntity, Long> {
 
+    java.util.List<ServiceEntity> findAllByActiveTrueOrderByNameAsc();
+
     /**
      * Verifica si ya existe un servicio registrado con un nombre específico,
      * realizando una búsqueda insensible a mayúsculas y minúsculas.

@@ -40,6 +40,13 @@ public class ServiceCatalogService {
         return services.findAll().stream().map(ServiceCatalogService::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ServiceResponse> findActive() {
+        return services.findAllByActiveTrueOrderByNameAsc().stream()
+                .map(ServiceCatalogService::toResponse)
+                .toList();
+    }
+
     /**
      * Busca y retorna un servicio específico mediante su ID único.
      */
