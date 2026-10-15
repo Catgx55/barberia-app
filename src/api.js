@@ -36,47 +36,75 @@ export function basicAuthorization(email, password) {
  * @returns {Promise<any>} Datos JSON devueltos por el servidor o null si la respuesta está vacía.
  * @throws {Error} Lanza un error descriptivo si falla la conexión o si el servidor responde con códigos de error HTTP.
  */
-export async function apiRequest(path, { method = 'GET', body, authorization, signal } = {}) {
+export async function apiRequest(
+  path,
+  { method = 'GET', body, authorization, signal, timeoutMs = 15000 } = {},
+) {
   const headers = new Headers();
   
   // Configura cabeceras si se envía un cuerpo o credenciales de autorización
   if (body !== undefined) headers.set('Content-Type', 'application/json');
   if (authorization) headers.set('Authorization', authorization);
 
-  let response;
+  const controller = new AbortController();
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort(signal.reason);
+  if (signal?.aborted) {
+    abortFromCaller();
+  } else {
+    signal?.addEventListener('abort', abortFromCaller, { once: true });
+  }
+  const timeoutId = timeoutMs > 0
+    ? setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs)
+    : undefined;
+
   try {
     // Ejecuta la petición nativa fetch apuntando al prefijo de la API
-    response = await fetch(`${API_ROOT}${path}`, {
+    const response = await fetch(`${API_ROOT}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal,
+      signal: controller.signal,
     });
+
+    // Si la respuesta es 204 No Content, retorna null directamente sin procesar cuerpo
+    if (response.status === 204) return null;
+
+    // Detecta el tipo de contenido retornado por el servidor
+    const contentType = response.headers.get('content-type') ?? '';
+    const payload = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+
+    // Si la respuesta del servidor no es exitosa (códigos 4xx, 5xx)
+    if (!response.ok) {
+      const message = typeof payload === 'object' && payload !== null
+        ? payload.message ?? payload.error ?? 'La solicitud no se pudo completar.'
+        : payload || 'La solicitud no se pudo completar.';
+
+      // Traduce el error 401 a un mensaje claro para el usuario
+      throw new Error(response.status === 401 ? 'Credenciales inválidas o sesión no autorizada.' : message);
+    }
+
+    return payload;
   } catch (error) {
-    // Propaga el error si fue provocado intencionalmente por un AbortController
-    if (error.name === 'AbortError') throw error;
-    // Captura errores de red (ej. si el servidor backend en Java Spring Boot no está corriendo)
-    throw new Error('No se pudo conectar con la API. Comprueba que Spring Boot esté ejecutándose.', {cause : error});
+    if (timedOut) {
+      throw new Error(
+        'La API tardó demasiado en responder. Verifica el estado de la cita antes de volver a intentarlo.',
+        { cause: error },
+      );
+    }
+    if (signal?.aborted || error.name === 'AbortError') throw error;
+    // Captura errores de red (ej. si el backend en Java Spring Boot no está ejecutándose)
+    if (error instanceof TypeError) {
+      throw new Error('No se pudo conectar con la API. Comprueba que Spring Boot esté ejecutándose.', { cause: error });
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    signal?.removeEventListener('abort', abortFromCaller);
   }
-
-  // Si la respuesta es 204 No Content, retorna null directamente sin procesar cuerpo
-  if (response.status === 204) return null;
-
-  // Detecta el tipo de contenido retornado por el servidor
-  const contentType = response.headers.get('content-type') ?? '';
-  const payload = contentType.includes('application/json')
-    ? await response.json()
-    : await response.text();
-
-  // Si la respuesta del servidor no es exitosa (códigos 4xx, 5xx)
-  if (!response.ok) {
-    const message = typeof payload === 'object' && payload !== null
-      ? payload.message ?? payload.error ?? 'La solicitud no se pudo completar.'
-      : payload || 'La solicitud no se pudo completar.';
-      
-    // Traduce el error 401 a un mensaje claro para el usuario
-    throw new Error(response.status === 401 ? 'Credenciales inválidas o sesión no autorizada.' : message);
-  }
-
-  return payload;
 }

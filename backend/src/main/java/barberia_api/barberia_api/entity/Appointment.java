@@ -13,6 +13,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -102,6 +103,7 @@ public class Appointment {
      * - `orphanRemoval = true`: Si un detalle es removido de la lista, Hibernate lo elimina automáticamente de la base de datos.
      */
     @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Setter(AccessLevel.NONE)
     private List<AppointmentDetail> details = new ArrayList<>();
 
     /**

@@ -19,16 +19,23 @@ const FORMULARIO_VACIO = {
   metodoPago: '',
 };
 
+const ZONA_HORARIA_CITAS = 'America/Bogota';
+
 /**
- * Convierte un objeto Date a una cadena ISO recortada para campos `datetime-local` (YYYY-MM-THH:mm),
- * ajustando manualmente la descompensación de la zona horaria local (`getTimezoneOffset`).
- * 
- * @param {Date} fecha - Objeto Date a formatear.
- * @returns {string} Cadena formateada para inputs de fecha y hora locales.
+ * Devuelve la fecha y hora actual como hora de pared de Colombia para los controles datetime-local.
  */
-function fechaHoraLocal(fecha) {
-  const desplazamiento = fecha.getTimezoneOffset() * 60_000;
-  return new Date(fecha.getTime() - desplazamiento).toISOString().slice(0, 16);
+function fechaHoraColombia(fecha = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_HORARIA_CITAS,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(fecha);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 }
 
 /**
@@ -37,10 +44,25 @@ function fechaHoraLocal(fecha) {
  * @returns {string} Fecha y hora formateada para la restricción `min` del input `datetime-local`.
  */
 function siguienteHorarioDisponible() {
-  const siguiente = new Date();
-  siguiente.setSeconds(0, 0);
-  siguiente.setMinutes(Math.ceil((siguiente.getMinutes() + 1) / 30) * 30);
-  return fechaHoraLocal(siguiente);
+  const [date, time] = fechaHoraColombia().split('T');
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  const roundedMinutes = Math.ceil((minute + 1) / 30) * 30;
+  return new Date(Date.UTC(year, month - 1, day, hour, roundedMinutes))
+    .toISOString()
+    .slice(0, 16);
+}
+
+function horarioDentroDeAtencion(fechaHora, duracionMinutos) {
+  const [fecha, hora] = fechaHora.split('T');
+  const [year, month, day] = fecha.split('-').map(Number);
+  const [hour, minute] = hora.split(':').map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const horaInicio = hour * 60 + minute;
+  const apertura = dayOfWeek === 0 ? 10 * 60 : 8 * 60;
+  const cierre = dayOfWeek === 6 ? 18 * 60 : dayOfWeek === 0 ? 16 * 60 : 20 * 60;
+
+  return horaInicio >= apertura && horaInicio + duracionMinutos <= cierre;
 }
 
 /**
@@ -82,7 +104,7 @@ export default function AgendarCita() {
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
   const [confirmacion, setConfirmacion] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
-  const [reservando, setReservando] = useState();
+  const [reservando, setReservando] = useState(false);
   const [fechaMinima, setFechaMinima] = useState(siguienteHorarioDisponible);
 
   /**
@@ -138,14 +160,17 @@ export default function AgendarCita() {
     evento.preventDefault();
     const service = servicios.find((item) => item.id === Number(formulario.servicioId));
     const barber = barberos.find((item) => item.id === Number(formulario.barberoId));
-    const start = new Date(formulario.fechaHora);
 
-    if (!service || !barber || Number.isNaN(start.getTime())) {
+    if (!service || !barber || !formulario.fechaHora) {
       setErrorReserva('Selecciona un servicio, barbero y horario válidos.');
       return;
     }
-    if (start <= new Date()) {
+    if (formulario.fechaHora <= fechaHoraColombia()) {
       setErrorReserva('La fecha de la cita debe ser posterior a la hora actual.');
+      return;
+    }
+    if (!horarioDentroDeAtencion(formulario.fechaHora, service.duracion)) {
+      setErrorReserva('El horario seleccionado está fuera del horario de atención para ese servicio.');
       return;
     }
 
@@ -159,6 +184,7 @@ export default function AgendarCita() {
     try {
       const appointment = await apiRequest('/public/appointments', {
         method: 'POST',
+        timeoutMs: 20000,
         body: {
           firstName,
           lastName: lastNameParts.join(' '),
