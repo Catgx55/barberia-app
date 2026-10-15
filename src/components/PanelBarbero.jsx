@@ -20,7 +20,7 @@ export default function PanelBarbero() {
   const [statuses, setStatuses] = useState([]); // Catálogo de estados posibles para las citas
 
   // Estados de control de interfaz (UX)
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState(null); // ID de la cita que se está actualizando actualmente
   const [error, setError] = useState('');
 

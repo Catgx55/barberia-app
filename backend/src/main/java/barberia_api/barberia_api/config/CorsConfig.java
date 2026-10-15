@@ -28,7 +28,7 @@ public class CorsConfig {
                         .allowedOrigins("http://localhost:5173") // Permite peticiones únicamente desde el servidor de desarrollo de Vite/React
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS") // Métodos HTTP autorizados
                         .allowedHeaders("Content-Type", "Authorization") // Cabeceras permitidas (clave para enviar HTTP Basic Auth)
-                        .allowCredentials(false) // Indica que no se envían cookies de sesión (arquitectura Stateless)
+                        .allowCredentials(true) // Indica que no se envían cookies de sesión (arquitectura Stateless)
                         .maxAge(3600); // Tiempo en segundos que el navegador puede cachear la respuesta de pre-verificación (Pre-flight cache: 1 hora)
             }
         };

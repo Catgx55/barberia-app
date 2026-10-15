@@ -82,7 +82,7 @@ export default function AgendarCita() {
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
   const [confirmacion, setConfirmacion] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
-  const [reservando, setReservando] = useState(false);
+  const [reservando, setReservando] = useState();
   const [fechaMinima, setFechaMinima] = useState(siguienteHorarioDisponible);
 
   /**
